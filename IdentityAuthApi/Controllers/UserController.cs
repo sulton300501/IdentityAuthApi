@@ -1,5 +1,7 @@
 ﻿using IdentityAuthApi.DTOs;
 using IdentityAuthApi.Models;
+using IdentityAuthApi.Service;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -7,16 +9,18 @@ using Microsoft.EntityFrameworkCore;
 
 namespace IdentityAuthApi.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/[controller]/[action]")]
     [ApiController]
     public class UserController : ControllerBase
     {
         private readonly UserManager<AppUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
-        public UserController(UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager)
+        private readonly IAuthService _authService;
+        public UserController(UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager, IAuthService authService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
+            _authService = authService;
         }
 
         [HttpPost]
@@ -91,7 +95,26 @@ namespace IdentityAuthApi.Controllers
         }
 
 
+        [HttpGet]
+        [Authorize(Roles = "Student")]
+        public async Task<ActionResult<string>> GetAllUsers1()
+        {
+            var result = await _userManager.Users.ToListAsync();
 
+            return Ok("Student keldi");
+        }
 
+        [HttpGet]
+        //[Authorize(Roles = "Admin, Student")]
+        public async Task<ActionResult<string>> GetAllUsers2()
+        {
+            var result = await _userManager.Users.ToListAsync();
+
+            return Ok("Admin, Student ishladi");
+        }
     }
+
+
+
 }
+
