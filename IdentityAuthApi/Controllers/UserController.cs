@@ -1,4 +1,5 @@
 ﻿using IdentityAuthApi.DTOs;
+using IdentityAuthApi.Filters;
 using IdentityAuthApi.Models;
 using IdentityAuthApi.Service;
 using Microsoft.AspNetCore.Authorization;
@@ -16,6 +17,7 @@ namespace IdentityAuthApi.Controllers
         private readonly UserManager<AppUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IAuthService _authService;
+        private readonly SignInManager<AppUser> _signInManager;
         public UserController(UserManager<AppUser> userManager, RoleManager<IdentityRole> roleManager, IAuthService authService)
         {
             _userManager = userManager;
@@ -64,22 +66,35 @@ namespace IdentityAuthApi.Controllers
         [HttpPost]
         public async Task<ActionResult<string>> Login(LoginDTO loginDTO)
         {
+            if (!ModelState.IsValid)
+            {
+                throw new Exception("Something went wrong");
+            }
+
+
             var user = await _userManager.FindByEmailAsync(loginDTO.Email);
 
-            if(User is null)
+            if(user is null)
             {
-                return Unauthorized("User not found wir this emil");
+                return Unauthorized("Email not found wir this emil");
 
             }
 
-            var test = await _userManager.CheckPasswordAsync(user, loginDTO.Password);
+            if (user.IsDeleted == true)
+                throw new Exception("Not found");
 
-            if (!test)
+            var tokenDTO = await _authService.GenerateToken(user);
+
+
+            if (tokenDTO.IsSuccess == false || tokenDTO.Token == "" || tokenDTO.Token is null)
             {
-                return Unauthorized("Password invalid");
+                throw new Exception("Something went wrong!!");
             }
 
-            return Ok("welcome to world");
+            HttpContext.Response.Cookies.Append("accessToken", tokenDTO.Token);
+
+            return Ok(tokenDTO);
+
 
 
 
@@ -96,22 +111,72 @@ namespace IdentityAuthApi.Controllers
 
 
         [HttpGet]
-        [Authorize(Roles = "Student")]
+        [AuthorizeFilter]
         public async Task<ActionResult<string>> GetAllUsers1()
         {
-            var result = await _userManager.Users.ToListAsync();
-
-            return Ok("Student keldi");
+            try
+            {
+                return Ok(await _userManager.Users.Where(x => x.IsDeleted == false).ToListAsync());
+            }
+            catch
+            {
+                return NotFound("Users are not found");
+            }
         }
 
-        [HttpGet]
-        //[Authorize(Roles = "Admin, Student")]
-        public async Task<ActionResult<string>> GetAllUsers2()
+        [HttpGet("{accountId}")]
+        [Authorize(Roles = "Admin, Teacher")]
+        public async Task<IActionResult> GetUserById(string id)
         {
-            var result = await _userManager.Users.ToListAsync();
+            try
+            {
+                var result = await _userManager.Users.FirstOrDefaultAsync(x => x.Id == id);
 
-            return Ok("Admin, Student ishladi");
+
+                if (result is null)
+                {
+                    return NotFound("Not found");
+                }
+                if (result.IsDeleted == true)
+                    throw new Exception("Not found");
+                return Ok(result);
+            }
+            catch
+            {
+                return NotFound("User is not found");
+            }
+
         }
+
+
+        [HttpDelete("{accountId}")]
+        [DeleteActionFilter]
+        [MyResultFilter]
+        public async Task<IActionResult> DeleteAccount(string accountId)
+        {
+            var user = await _userManager.FindByIdAsync(accountId);
+
+            if (user is null)
+                throw new Exception("Not found");
+
+            if (user.IsDeleted == true)
+                throw new Exception("Not found");
+            //var deleteUser = await _userManager.DeleteAsync(user);
+            user.IsDeleted = true;
+            user.DeleteDate = DateTime.UtcNow;
+            var result = await _userManager.UpdateAsync(user);
+
+            if (!result.Succeeded)
+                throw new Exception("No deleted");
+            return Ok(result);
+        }
+
+
+
+       
+
+
+
     }
 
 
