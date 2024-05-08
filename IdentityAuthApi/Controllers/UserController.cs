@@ -102,17 +102,12 @@ namespace IdentityAuthApi.Controllers
 
 
 
-        [HttpGet]
-        public async Task<ActionResult<string>> GetAllUsers()
-        {
-            var result = await _userManager.Users.ToListAsync();
-            return Ok(result);
-        }
+
 
 
         [HttpGet]
         [AuthorizeFilter]
-        public async Task<ActionResult<string>> GetAllUsers1()
+        public async Task<ActionResult<string>> GetAllUsers()
         {
             try
             {
@@ -147,6 +142,29 @@ namespace IdentityAuthApi.Controllers
             }
 
         }
+
+
+        [HttpPost("Logout")]
+        [Authorize(Roles = "Admin, Teacher, Student")]
+        public async Task<IActionResult> LogOut()
+        {
+            try
+            {
+                await _signInManager.SignOutAsync();
+
+                HttpContext.Response.Cookies.Delete("accessToken");
+
+                return Ok("Loged Out");
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+
+
+
 
 
         [HttpDelete("{accountId}")]
